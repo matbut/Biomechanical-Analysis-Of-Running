@@ -43,9 +43,9 @@ class Actor:
 
     def train(self, inputs, action_gradient):
         with tf.GradientTape() as tape:
-            loss = self.model(inputs)
-        unnormalized_actor_gradients = tape.gradient(loss, self.model.trainable_variables, -action_gradient)
-        actor_gradients = list(map(lambda x: tf.math.divide(x, self.batch_size), unnormalized_actor_gradients)) # tf.div --> tf.math.divide
+            outputs = self.model(inputs, training=True)
+        unnormalized_actor_gradients = tape.gradient(outputs, self.model.trainable_variables, -action_gradient)
+        actor_gradients = list(map(lambda x: tf.math.divide(x, self.batch_size), unnormalized_actor_gradients))
 
         self.optimize(actor_gradients)
 

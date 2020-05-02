@@ -20,13 +20,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 def main(args):
 
-    env = gym.make(args['env'])
+    env = gym.make('HumanoidDeepMimicWalkBulletEnv-v1')#gym.make(args['env'])
     np.random.seed(int(args['random_seed']))
     tf.random.set_seed(int(args['random_seed']))
     env.seed(int(args['random_seed']))
 
     if args['render_env']:
-        env.render(mode='human')
+        #env.render(mode='human')
         env.reset()
 
     state_dim = env.observation_space.shape[0]

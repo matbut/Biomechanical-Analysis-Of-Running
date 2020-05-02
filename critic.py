@@ -23,7 +23,7 @@ class Critic:
         self.target_model = self.create_critic_network()
 
         self.optimizer = Adam(learning_rate=self.learning_rate)
-        self.loss = lambda q, s, a: tf.keras.losses.MSE(q, self.model([s, a]))
+        self.loss = lambda q, s, a: tf.keras.losses.MSE(self.model([s, a], training=True), q)
 
     def create_critic_network(self):
         state = Input(shape=(self.state_dim,))
@@ -53,7 +53,7 @@ class Critic:
     def train(self, state, action, predicted_q_value):
         self.optimizer.minimize(lambda: self.loss(predicted_q_value, state, action),
                                 var_list=self.model.trainable_variables)
-        return self.model([state, action])
+        return self.model([state, action], training=True)
 
     @tf.function
     def predict(self, state, action):
@@ -67,8 +67,8 @@ class Critic:
     def action_gradients(self, state, action):
         with tf.GradientTape() as tape:
             tape.watch(action)
-            loss = self.model([state, action])
-        return tape.gradient(loss, action)
+            out = self.model([state, action], training=True)
+        return tape.gradient(out, action)
 
     @tf.function
     def update_target_network(self):

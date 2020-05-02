@@ -27,20 +27,6 @@ class OrnsteinUhlenbeckActionNoise:
     def __repr__(self):
         return 'OrnsteinUhlenbeckActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
 
-# ===========================
-#   Tensorflow Summary Ops
-# ===========================
-
-def build_summaries():
-    episode_reward = tf.Variable(0.)
-    tf.summary.scalar("Reward", episode_reward)
-    episode_ave_max_q = tf.Variable(0.)
-    tf.summary.scalar("Qmax Value", episode_ave_max_q)
-
-    summary_vars = [episode_reward, episode_ave_max_q]
-    summary_ops = tf.summary.merge_all()
-
-    return summary_ops, summary_vars
 
 # ===========================
 #   Agent Training
@@ -48,23 +34,12 @@ def build_summaries():
 
 def train(env, args, actor, critic, actor_noise):
 
-    # Set up summary Ops
-    #summary_ops, summary_vars = build_summaries()
-
-    #sess.run(tf.global_variables_initializer())
-    #writer = tf.summary.FileWriter(args['summary_dir'], sess.graph)
-
     # Initialize target network weights
     actor.update_target_network()
     critic.update_target_network()
 
     # Initialize replay memory
     replay_buffer = ReplayBuffer(int(args['buffer_size']), int(args['random_seed']))
-
-    # Needed to enable BatchNorm.
-    # This hurts the performance on Pendulum but could be useful
-    # in other environments.
-    # tflearn.is_training(True)
 
     for i in range(int(args['max_episodes'])):
 
@@ -79,7 +54,6 @@ def train(env, args, actor, critic, actor_noise):
                 env.render(mode='human')
 
             # Added exploration noise
-            #a = actor.predict(np.reshape(s, (1, 3))) + (1. / (1. + i))
             a = actor.predict(np.reshape(s, (1, actor.state_dim))) + actor_noise()
             print("j=",j)
             print("s=",s)
@@ -93,12 +67,10 @@ def train(env, args, actor, critic, actor_noise):
 
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
-            #FIXME something goes wrong when we reach reach j=args['minibatch_size'] and go inside IF body below
-            # next predicted action is a Tensor od NaNs
-            # maybe there is something wrong with the Actor.train? (It's the first time we use it,
-            # and before that nothing returned has Nans)
-            # sometimes the problem occurs for j=args['minibatch_size'] + 1 -> maybe this means that there is something
-            # wrong with gradient and optimization and that weigths are becoming infinity
+            #FIXME something goes wrong after we reach reach j=args['minibatch_size'] and go inside IF body below
+            # after a while predicted action is a Tensor od NaNs
+            # seems like there is something wrong with the Actor.train? (probably gradients?)
+            # sometimes weights in actor model become NaNs or really large values ~ 10^100
             if replay_buffer.size() > int(args['minibatch_size']):
                 s_batch, a_batch, r_batch, t_batch, s2_batch = \
                     replay_buffer.sample_batch(int(args['minibatch_size']))
@@ -117,52 +89,21 @@ def train(env, args, actor, critic, actor_noise):
                         y_i.append(r_batch[k] + critic.gamma * target_q[k])
 
                 # Update the critic given the targets
-                #print("s_batch", s_batch)
-                #print("a_batch", a_batch)
                 y_i_reshaped = np.reshape(y_i, (int(args['minibatch_size']), 1))
-                #print("y_i", y_i)
-                #print("y_i_reshaped",y_i_reshaped)
-                #print("np.array(y_i)", np.array(y_i))
-                #print("y_i_reshaped.shape",y_i_reshaped.shape)
-                #print("------------------")
                 predicted_q_value = critic.train(s_batch, a_batch, y_i_reshaped)
 
                 ep_ave_max_q += np.amax(predicted_q_value)
 
                 # Update the actor policy using the sampled gradient
-                print("###### actor #####")
-                print(actor.model.trainable_variables)
-                print("###### critic #####")
-                print(critic.model.trainable_variables)
-
                 a_outs = actor.predict(s_batch)
-                #print("a_outs", a_outs)
                 grads = critic.action_gradients(s_batch, a_outs)
-                #print("grads[0]", grads[0])
                 actor.train(s_batch, grads[0])
 
-                ## FIXME: after actor.train weights in actor become NaNs
-
-                print("###### actor 0#####")
-                print(actor.model.trainable_variables)
-                print("###### critic 0#####")
-                print(critic.model.trainable_variables)
+                ## FIXME: after running actor.train a few times weights in actor become NaNs
 
                 # Update target networks
                 actor.update_target_network()
-
-                print("###### actor 1#####")
-                print(actor.model.trainable_variables)
-                print("###### critic 1#####")
-                print(critic.model.trainable_variables)
-
-
                 critic.update_target_network()
-
-                print("###### actor 2#####")
-                print(actor.model.trainable_variables)
-                print("###### critic 2#####")
-                print(critic.model.trainable_variables)
 
 
             s = s2
@@ -171,15 +112,6 @@ def train(env, args, actor, critic, actor_noise):
             print("reward:", ep_reward)
 
             if terminal:
-
-                #summary_str = sess.run(summary_ops, feed_dict={
-                #    summary_vars[0]: ep_reward,
-                #    summary_vars[1]: ep_ave_max_q / float(j)
-                #})
-
-                #writer.add_summary(summary_str, i)
-                #writer.flush()
-
                 print('| Reward: {:d} | Episode: {:d} | Qmax: {:.4f}'.format(int(ep_reward), \
                         i, (ep_ave_max_q / float(j))))
                 break
