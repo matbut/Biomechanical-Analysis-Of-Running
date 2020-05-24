@@ -6,6 +6,7 @@ Model = tf.keras.Model
 Input = tf.keras.layers.Input
 Dense = tf.keras.layers.Dense
 Add = tf.keras.layers.Add
+Lambda = tf.keras.layers.Lambda
 BatchNormalization = tf.keras.layers.BatchNormalization
 Activation = tf.keras.layers.Activation
 
@@ -28,20 +29,29 @@ class Critic:
         self.target_model = self.create_critic_network()
 
     def create_critic_network(self):
-        state = Input(shape=(self.state_dim,))
-        state_hidden_1 = Dense(400, activation='relu')(state)
-        state_hidden_2 = Dense(300, activation='relu')(state_hidden_1)
+        state = Input(shape=(self.state_dim,), name='critic_state_input')
+        #version 1
+        #state_hidden_1 = Dense(400, activation='relu', name='critic_state_hidden_1')(state)
 
-        action = Input(shape=(self.action_dim,))
-        action_hidden_1 = Dense(300)(action)
+        #version 2
+        state_hidden_1 = Dense(400, use_bias=False)(state)
+        state_hidden_2 = BatchNormalization()(state_hidden_1)
+        state_hidden_3 = Activation('relu')(state_hidden_2)
 
-        merged = Add()([state_hidden_2, action_hidden_1])
-        merged_hidden_1 = Dense(300, activation='relu')(merged)
+        state_hidden_2 = Dense(300, use_bias=False, name='critic_state_hidden_2')(state_hidden_3)
 
-        output = Dense(1, activation='relu')(merged_hidden_1)
+        action = Input(shape=(self.action_dim,), name='critic_action_input')
+        action_hidden_1 = Dense(300, name='critic_action_hidden_1')(action)
+
+        merged = Add(name='critic_merged')([state_hidden_2, action_hidden_1])
+        merged_hidden_1 = Activation('relu', name='critic_merged_hidden_1')(merged)
+
+        weights_initializer = tf.keras.initializers.RandomUniform(minval=-0.003, maxval=0.003)
+        output = Dense(1, kernel_initializer=weights_initializer, bias_initializer=weights_initializer,
+                       name='critic_output')(merged_hidden_1)
         model = Model(inputs=[state, action], outputs=output)
 
-        optimizer = Adam(lr=0.001)
+        optimizer = Adam(lr=0.1)
         model.compile(loss='mse', optimizer=optimizer)
 
         return model
@@ -58,13 +68,12 @@ class Critic:
     def action_gradients(self, state, action):
         with tf.GradientTape() as tape:
             tape.watch(action)
-            tape.watch(state)
-            out = self.model([state, action], training=True)
+            out = self.model([state, action])
         return tape.gradient(out, action)
 
     @tf.function
     def update_target_network(self):
-        for i in range(len(self.target_model.trainable_variables)):
-            self.target_model.trainable_variables[i].assign(
-                tf.math.multiply(self.model.trainable_variables[i], self.tau)
-                + tf.math.multiply(self.target_model.trainable_variables[i], 1. - self.tau))
+        for i in range(len(self.target_model.trainable_weights)):
+            self.target_model.trainable_weights[i].assign(
+                tf.math.multiply(self.model.trainable_weights[i], self.tau)
+                + tf.math.multiply(self.target_model.trainable_weights[i], 1. - self.tau))
