@@ -6,7 +6,6 @@ Model = tf.keras.Model
 Input = tf.keras.layers.Input
 Dense = tf.keras.layers.Dense
 Add = tf.keras.layers.Add
-Lambda = tf.keras.layers.Lambda
 BatchNormalization = tf.keras.layers.BatchNormalization
 Activation = tf.keras.layers.Activation
 
@@ -14,10 +13,8 @@ Adam = tf.keras.optimizers.Adam
 
 
 class Critic:
-    def __init__(self, env, lr, eps, eps_decay, gamma, tau):
+    def __init__(self, env, lr, gamma, tau):
         self.learning_rate = lr
-        self.epsilon = eps
-        self.epsilon_decay = eps_decay
         self.gamma = gamma
         self.tau = tau
 
@@ -51,7 +48,7 @@ class Critic:
                        name='critic_output')(merged_hidden_1)
         model = Model(inputs=[state, action], outputs=output)
 
-        optimizer = Adam(lr=0.1)
+        optimizer = Adam(lr=self.learning_rate)
         model.compile(loss='mse', optimizer=optimizer)
 
         return model
