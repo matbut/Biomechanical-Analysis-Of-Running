@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 
+from action_noise import OrnsteinUhlenbeckActionNoise
+
 tf.keras.backend.set_floatx('float64')
 
 Model = tf.keras.Model
@@ -13,15 +15,15 @@ Adam = tf.keras.optimizers.Adam
 
 
 class Actor:
-    def __init__(self, env, lr, eps, eps_decay, tau):
+    def __init__(self, env, lr, tau):
         self.learning_rate = lr
-        self.epsilon = eps
-        self.epsilon_decay = eps_decay
         self.tau = tau
 
         self.env = env
         self.state_dim = env.observation_space.shape[0]
         self.action_dim = env.action_space.shape[0]
+
+        self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.action_dim))
 
         self.optimizer = Adam(learning_rate=self.learning_rate)
 
@@ -45,7 +47,7 @@ class Actor:
         weights_initializer = tf.keras.initializers.RandomUniform(minval=-0.003, maxval=0.003)
         output = Dense(self.action_dim, activation='tanh',
                        kernel_initializer=weights_initializer, bias_initializer=weights_initializer,
-                       name='actor_output')(hidden_6)
+                       name='actor_output')(hidden_6)#(hidden_2)#
 
         # scaling output range [-1, 1] to action range [env.action_space.low, self.env.action_space.high]
         scaled_output = Scaler(self.env, name='actor_scaled_output')(output)
@@ -56,10 +58,7 @@ class Actor:
         return model
 
     def act(self, state):
-        self.epsilon *= self.epsilon_decay
-        if np.random.random() < self.epsilon:
-            return self.env.action_space.sample()
-        return self.predict(state).numpy()[0]
+        return self.predict(state).numpy()[0] + self.noise()
 
     @tf.function
     def train(self, cur_state_batch, action_gradients_batch):
