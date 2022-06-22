@@ -3,7 +3,7 @@ tensorflow
 cloudpickle==1.3.0
 future==0.18.2
 gym==0.17.1
-numpy==1.18.2
+numpy==1.22.0
 pybullet
 pyglet==1.5.0
 scipy==1.4.1
